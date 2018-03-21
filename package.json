@@ -1,0 +1,23 @@
+{
+  "name": "twitterfavorite",
+  "version": "1.0.0",
+  "description": "Bot to AutoFavorite Tweets on Twitter",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^5.0.1",
+    "languagedetect": "^1.1.1",
+    "log-timestamp": "^0.1.2",
+    "moment": "^2.20.1",
+    "twit": "^2.2.9",
+    "twitter": "^1.7.1",
+    "underscore": "^1.8.3"
+  },
+  "devDependencies": {
+    "eslint-config-google": "^0.9.1"
+  }
+}
