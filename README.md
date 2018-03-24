@@ -3,17 +3,6 @@ TwitterFavorite
 
 A boilerplate for **Node.js** Twitter Automation applications.
 
-<h4 align="center">Modern Theme</h4>
-
-![](https://lh6.googleusercontent.com/-KQTmCFNK6MM/U7OZpznjDuI/AAAAAAAAERc/h3jR27Uy1lE/w1366-h1006-no/Screenshot+2014-07-02+01.32.22.png)
-
-<h4 align="center">Flatly Bootstrap Theme</h4>
-
-![](https://lh5.googleusercontent.com/-oJ-7bSYisRY/U1a-WhK_LoI/AAAAAAAAECM/a04fVYgefzw/w1474-h1098-no/Screen+Shot+2014-04-22+at+3.08.33+PM.png)
-
-<h4 align="center">API Examples</h4>
-
-![](https://lh5.googleusercontent.com/-BJD2wK8CvC8/VLodBsyL-NI/AAAAAAAAEx0/SafE6o_qq_I/w1818-h1186-no/Screenshot%2B2015-01-17%2B00.25.49.png)
 
 Table of Contents
 -----------------
@@ -30,11 +19,9 @@ Table of Contents
 - [Recommended Client-side Libraries](#recommended-client-side-libraries)
 - [Pro Tips](#pro-tips)
 - [FAQ](#faq)
-- [How It Works](#how-it-works-mini-guides)
 - [Cheatsheets](#cheatsheets)
     - [ES6](#-es6-cheatsheet)
     - [JavaScript Date](#-javascript-date-cheatsheet)
-    - [Mongoose Cheatsheet](#mongoose-cheatsheet)
 - [Deployment](#deployment)
 - [Docker](#docker)
 - [Changelog](#changelog)
@@ -68,7 +55,7 @@ The easiest way to get started is to clone the repository:
 
 ```bash
 # Get the latest snapshot
-git clone --depth=1 https://github.com/sahat/hackathon-starter.git myproject
+git clone --depth=1 https://github.com/roberjo/TwitterFavorite.git myproject
 
 # Change directory
 cd myproject
@@ -163,7 +150,7 @@ Recommended Design Resources
 - [UIBox](http://www.uibox.in) - Curated HTML, CSS, JS, UI components.
 - [Bootstrap Zero](https://www.bootstrapzero.com) - Free Bootstrap templates themes.
 - [Google Bootstrap](http://todc.github.io/todc-bootstrap/) - Google-styled theme for Bootstrap.
-- [Font Awesome Icons](http://fortawesome.github.io/Font-Awesome/icons/) - It's already part of the Hackathon Starter, so use this page as a reference.
+- [Font Awesome Icons](http://fortawesome.github.io/Font-Awesome/icons/) - Reference page.
 - [Colors](http://clrs.cc) - A nicer color palette for the web.
 - [Creative Button Styles](http://tympanus.net/Development/CreativeButtons/) - awesome button styles.
 - [Creative Link Effects](http://tympanus.net/Development/CreativeLinkEffects/) - Beautiful link effects in CSS.
