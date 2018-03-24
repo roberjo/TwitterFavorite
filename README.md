@@ -3,6 +3,8 @@ TwitterFavorite
 
 A boilerplate for **Node.js** Twitter Automation applications.
 
+Hat tip to Sahat Yalkabov for his [Hackathon Starter](https://github.com/sahat/hackathon-starter) project which is an inspiration. 
+
 
 Table of Contents
 -----------------
