@@ -164,6 +164,24 @@ class Metrics {
       ? Math.round(this.processingTimes.reduce((a, b) => a + b, 0) / this.processingTimes.length)
       : 0;
 
+    const latestResourceMetrics = this.resourceMetrics.length > 0
+      ? this.resourceMetrics[this.resourceMetrics.length - 1]
+      : {
+          cpu: { usage: 0, cores: os.cpus().length },
+          memory: {
+            heapUsed: 0,
+            heapTotal: 0,
+            rss: 0,
+            external: 0
+          },
+          system: {
+            totalMemory: Math.round(os.totalmem() / (1024 * 1024)),
+            freeMemory: Math.round(os.freemem() / (1024 * 1024)),
+            uptime: 0,
+            loadAvg: [0, 0, 0]
+          }
+        };
+
     return {
       runtime: {
         uptime: Math.floor((this._getNow() - this.startTime) / 1000),
@@ -181,9 +199,7 @@ class Metrics {
         streamDisconnects: this.streamDisconnects,
         retryAttempts: this.retryAttempts
       },
-      resources: this.resourceMetrics.length > 0
-        ? this.resourceMetrics[this.resourceMetrics.length - 1]
-        : null
+      resources: latestResourceMetrics
     };
   }
 

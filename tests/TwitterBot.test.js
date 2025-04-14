@@ -20,6 +20,12 @@ jest.mock('../src/config', () => ({
     maxRetries: 3,
     initialDelay: 2000,
     maxDelay: 30000
+  },
+  cleanupServiceConfig: {
+    tweetCache: {
+      size: jest.fn().mockReturnValue(100),
+      cleanup: jest.fn().mockResolvedValue(undefined)
+    }
   }
 }));
 
@@ -30,13 +36,38 @@ jest.mock('../src/services/ErrorReportingService');
 
 describe('TwitterBot', () => {
   let bot;
+  let mockExit;
+  const testConfig = {
+    twitterKeys: {
+      consumer_key: 'key',
+      consumer_secret: 'secret',
+      access_token: 'token',
+      access_token_secret: 'token_secret'
+    },
+    twitterConfig: {
+      language: 'en'
+    },
+    cleanupServiceConfig: {
+      tweetCache: {
+        size: jest.fn().mockReturnValue(100),
+        cleanup: jest.fn().mockResolvedValue(undefined)
+      }
+    }
+  };
 
   beforeEach(() => {
-    bot = new TwitterBot();
+    jest.useFakeTimers();
+    bot = new TwitterBot(testConfig);
+    jest.clearAllMocks();
+    mockExit = jest.spyOn(process, 'exit').mockImplementation(() => {});
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
+  afterEach(async () => {
+    bot.cleanupService.stop();
+    jest.clearAllTimers();
+    jest.useRealTimers();
+    mockExit.mockRestore();
+    await Promise.resolve(); // Flush promises
   });
 
   describe('start', () => {

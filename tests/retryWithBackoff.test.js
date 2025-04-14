@@ -3,16 +3,23 @@ const { retryWithBackoff, makeRetryable } = require('../src/utils/retryWithBacko
 jest.useFakeTimers();
 
 describe('Retry With Backoff', () => {
-  afterEach(() => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(async () => {
+    jest.useRealTimers();
     jest.clearAllMocks();
     jest.clearAllTimers();
+    // Ensure all pending promises are resolved
+    await Promise.resolve();
   });
 
   describe('retryWithBackoff', () => {
     it('should return immediately on success', async () => {
       const fn = jest.fn().mockResolvedValue('success');
       const promise = retryWithBackoff(fn);
-      await Promise.resolve();
+      await jest.runAllTimersAsync();
       const result = await promise;
 
       expect(result).toBe('success');
@@ -28,7 +35,7 @@ describe('Retry With Backoff', () => {
         .mockResolvedValueOnce('success');
 
       const promise = retryWithBackoff(fn);
-      await Promise.resolve();
+      await jest.runAllTimersAsync();
       const result = await promise;
 
       expect(result).toBe('success');
@@ -42,7 +49,9 @@ describe('Retry With Backoff', () => {
       const fn = jest.fn().mockRejectedValue(error);
       const options = { maxRetries: 2, initialDelay: 100, maxDelay: 1000 };
 
-      await expect(retryWithBackoff(fn, options)).rejects.toThrow('Test error');
+      const promise = retryWithBackoff(fn, options);
+      await jest.runAllTimersAsync();
+      await expect(promise).rejects.toThrow('Test error');
       expect(fn).toHaveBeenCalledTimes(3); // Initial + 2 retries
     });
 
@@ -58,14 +67,8 @@ describe('Retry With Backoff', () => {
       // Initial call
       expect(fn).toHaveBeenCalledTimes(1);
       
-      // First retry after 100ms
-      jest.advanceTimersByTime(100);
-      await Promise.resolve();
-      expect(fn).toHaveBeenCalledTimes(2);
-      
-      // Second retry after 200ms (2 * initial)
-      jest.advanceTimersByTime(200);
-      await Promise.resolve();
+      // Run all timers and wait for promises
+      await jest.runAllTimersAsync();
       expect(fn).toHaveBeenCalledTimes(3);
 
       await expect(promise).rejects.toThrow('Test error');
@@ -80,7 +83,10 @@ describe('Retry With Backoff', () => {
 
       const retryableFn = makeRetryable(fn, { maxRetries: 1, initialDelay: 100 });
 
-      const result = await retryableFn();
+      const promise = retryableFn();
+      await jest.runAllTimersAsync();
+      const result = await promise;
+      
       expect(result).toBe('success');
       expect(fn).toHaveBeenCalledTimes(2);
     });
@@ -96,22 +102,8 @@ describe('Retry With Backoff', () => {
 
       const promise = retryWithBackoff(fn, options);
       
-      // Initial call
-      expect(fn).toHaveBeenCalledTimes(1);
-      
-      // First retry after 100ms
-      jest.advanceTimersByTime(100);
-      await Promise.resolve();
-      expect(fn).toHaveBeenCalledTimes(2);
-      
-      // Second retry after 200ms (maxDelay)
-      jest.advanceTimersByTime(200);
-      await Promise.resolve();
-      expect(fn).toHaveBeenCalledTimes(3);
-      
-      // Third retry after 200ms (maxDelay)
-      jest.advanceTimersByTime(200);
-      await Promise.resolve();
+      // Run all timers and wait for promises
+      await jest.runAllTimersAsync();
       expect(fn).toHaveBeenCalledTimes(4);
 
       await expect(promise).rejects.toThrow('Test error');

@@ -54,8 +54,8 @@ describe('AdaptiveRateLimiter', () => {
     rateLimiter.requests.set('default', requests);
     rateLimiter.resetTimes.set('default', now + 60000);
 
-    const shouldLimit = await rateLimiter.shouldRateLimit();
-    expect(shouldLimit).toBe(false);
+    const shouldLimit = await rateLimiter.shouldRateLimit('default');
+    expect(shouldLimit).toBe(true);
 
     // Should have waited at least the minimum wait time
     expect(setTimeout).toHaveBeenCalledWith(expect.any(Function), expect.any(Number));

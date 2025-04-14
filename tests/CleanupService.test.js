@@ -14,7 +14,14 @@ describe('CleanupService', () => {
   let mockHandler;
   const testConfig = {
     cacheCleanupInterval: 1000,
-    metricsRotationInterval: 2000
+    metricsRotationInterval: 2000,
+    tweetCache: {
+      size: jest.fn().mockReturnValue(100),
+      cleanup: jest.fn().mockResolvedValue(undefined)
+    },
+    dataPersistence: {
+      saveMetrics: jest.fn().mockResolvedValue(undefined)
+    }
   };
 
   beforeEach(() => {
@@ -26,16 +33,14 @@ describe('CleanupService', () => {
 
     // Reset metrics mock
     metrics.getMetrics.mockReturnValue({});
-
-    // Clear any existing handlers
-    cleanupService.cleanupHandlers.clear();
-    cleanupService.isShuttingDown = false;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     cleanupService.stop();
+    jest.clearAllTimers();
     jest.useRealTimers();
     mockExit.mockRestore();
+    await Promise.resolve(); // Flush promises
   });
 
   describe('start', () => {
@@ -177,24 +182,17 @@ describe('CleanupService', () => {
     });
 
     it('should timeout long-running cleanup handlers', async () => {
-      jest.useFakeTimers();
-
       const slowHandler = jest.fn().mockImplementation(() => new Promise(resolve => {
-        setTimeout(resolve, 10000); // Takes longer than timeout
+        setTimeout(resolve, 10000);
       }));
 
       cleanupService.registerCleanupHandler(slowHandler, 'slow');
 
       const shutdownPromise = cleanupService.shutdown('SIGTERM');
-
-      // Advance timers past the 5000ms timeout
-      jest.advanceTimersByTime(6000);
-
+      await jest.advanceTimersByTimeAsync(6000);
       await shutdownPromise;
 
       expect(process.exit).toHaveBeenCalledWith(1);
-
-      jest.useRealTimers();
     });
   });
 });

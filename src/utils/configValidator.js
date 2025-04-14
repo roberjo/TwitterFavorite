@@ -79,13 +79,7 @@ function validateConfig(config) {
     logger.info('Configuration validated successfully', { config: sanitizedConfig });
     return validatedConfig;
   } catch (error) {
-    if (error instanceof ConfigValidationError) {
-      logger.error('Configuration validation failed', {
-        errors: error.validationErrors || [error.message]
-      });
-      throw error;
-    }
-    throw new ConfigValidationError('Unexpected error during config validation', [error.message]);
+    throw new Error(`Unexpected error during config validation: ${error.message}`);
   }
 }
 

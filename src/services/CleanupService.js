@@ -5,9 +5,10 @@ const DataPersistenceService = require('./DataPersistenceService');
 class CleanupService {
   constructor(options = {}) {
     this.cleanupHandlers = new Set();
-    this.intervals = new Set();
+    this.intervals = [];
     this.isShuttingDown = false;
     this.dataPersistence = new DataPersistenceService(options.persistenceConfig);
+    this.tweetCache = options.tweetCache;
 
     // Default intervals
     this.cacheCleanupInterval = options.cacheCleanupInterval || 300000; // 5 minutes
@@ -20,10 +21,10 @@ class CleanupService {
     // Start periodic cache cleanup
     const cacheInterval = setInterval(() => {
       this.runNow().catch(error => {
-        logger.error('Periodic cleanup failed', { error });
+        logger.error('Cache cleanup failed', { error });
       });
     }, this.cacheCleanupInterval);
-    this.intervals.add(cacheInterval);
+    this.intervals.push(cacheInterval);
 
     // Start periodic metrics rotation
     const metricsInterval = setInterval(() => {
@@ -33,7 +34,7 @@ class CleanupService {
           logger.error('Failed to save metrics', { error });
         });
     }, this.metricsRotationInterval);
-    this.intervals.add(metricsInterval);
+    this.intervals.push(metricsInterval);
 
     logger.info('Cleanup service started', {
       cacheInterval: this.cacheCleanupInterval,
@@ -45,15 +46,19 @@ class CleanupService {
     for (const interval of this.intervals) {
       clearInterval(interval);
     }
-    this.intervals.clear();
+    this.intervals = [];
     logger.info('Cleanup service stopped');
   }
 
   async runNow() {
+    if (!this.tweetCache) {
+      throw new Error('Cache cleanup failed: Tweet cache not initialized');
+    }
+
     try {
-      const cacheSize = tweetCache.size();
-      await tweetCache.cleanup(3600000); // Clean tweets older than 1 hour
-      const newSize = tweetCache.size();
+      const cacheSize = this.tweetCache.size();
+      await this.tweetCache.cleanup(this.cacheCleanupInterval);
+      const newSize = this.tweetCache.size();
       
       if (newSize < cacheSize) {
         logger.info('Cache cleanup completed', {
@@ -65,8 +70,8 @@ class CleanupService {
 
       metrics.logMetrics();
     } catch (error) {
-      logger.error('Immediate cleanup failed', { error });
-      throw new Error('Cleanup failed');
+      logger.error('Cache cleanup failed', { error });
+      throw error;
     }
   }
 

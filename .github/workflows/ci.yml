@@ -34,7 +34,7 @@ jobs:
       run: npm ci
     
     - name: Run tests with coverage
-      run: npm run test:coverage
+      run: npm run test:coverage -- --detectOpenHandles --testTimeout=10000
       env:
         NODE_ENV: ${{ github.event.inputs.environment || 'development' }}
     

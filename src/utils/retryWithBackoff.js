@@ -39,15 +39,17 @@ const defaultConfig = {
 async function retryWithBackoff(fn, config = {}) {
   const finalConfig = { ...defaultConfig, ...config };
   let lastError;
+  let attempt = 0;
   
-  for (let attempt = 1; attempt <= finalConfig.maxRetries; attempt++) {
+  do {
     try {
+      attempt++;
       const result = await fn();
       return result;
     } catch (error) {
       lastError = error;
       
-      if (!finalConfig.shouldRetry(error) || attempt === finalConfig.maxRetries) {
+      if (!finalConfig.shouldRetry(error) || attempt >= finalConfig.maxRetries + 1) {
         throw error;
       }
 
@@ -59,12 +61,13 @@ async function retryWithBackoff(fn, config = {}) {
       logger.warn('Request failed, retrying', {
         attempt,
         nextRetryMs: delay,
-        error: error.message
+        error: error.message,
+        timestamp: new Date().toISOString()
       });
 
       await new Promise(resolve => setTimeout(resolve, delay));
     }
-  }
+  } while (attempt < finalConfig.maxRetries + 1);
 
   throw lastError;
 }

@@ -37,18 +37,33 @@ class AdaptiveRateLimiter {
     }
   }
 
+  recordCall(endpoint = 'default') {
+    this._cleanExpiredRequests(endpoint);
+    const requests = this.requests.get(endpoint) || [];
+    const now = Date.now();
+    
+    requests.push(now);
+    this.requests.set(endpoint, requests);
+
+    // If no reset time is set, set one for the current window
+    if (!this.resetTimes.has(endpoint)) {
+      this.resetTimes.set(endpoint, now + this.windowMs);
+    }
+
+    return {
+      remaining: this.maxRequests - requests.length,
+      resetTime: this.resetTimes.get(endpoint)
+    };
+  }
+
   async shouldRateLimit(endpoint = 'default') {
     this._cleanExpiredRequests(endpoint);
     
     const requests = this.requests.get(endpoint) || [];
-    const now = Date.now();
-
     if (requests.length >= this.maxRequests) {
       return true;
     }
 
-    requests.push(now);
-    this.requests.set(endpoint, requests);
     return false;
   }
 
