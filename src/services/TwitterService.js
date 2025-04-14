@@ -35,11 +35,12 @@ class TwitterService {
     this.config = config.twitterConfig;
     this.lngDetector = new LanguageDetect();
     this.tweetQueue = [];
+    this.rateLimiter = new rateLimiter(); // Initialize rate limiter instance
     
     // Start cache cleanup interval
     setInterval(() => {
       tweetCache.cleanup(ONE_HOUR);
-    }, ONE_HOUR);
+    }, ONE_HOUR).unref(); // Allow process to exit if this is the only timer
 
     // Configure retry settings for API calls
     this.retryConfig = {
@@ -59,8 +60,8 @@ class TwitterService {
     };
 
     // Wrap API methods with error reporting
-    this.startStream = errorReporting.wrapAsync(this.startStream.bind(this), 'twitter-stream');
-    this.favoriteTweet = errorReporting.wrapAsync(this.favoriteTweet.bind(this), 'favorite-tweet');
+    this.startStream = errorReporting.wrapAsync(this.startStream.bind(this));
+    this.favoriteTweet = errorReporting.wrapAsync(this.favoriteTweet.bind(this));
   }
 
   /**
@@ -72,22 +73,25 @@ class TwitterService {
   async startStream(searchSymbols) {
     return retryWithBackoff(async () => {
       try {
-        if (rateLimiter.isRateLimited('statuses/filter')) {
-          const resetTime = rateLimiter.getResetTime('statuses/filter');
+        if (this.rateLimiter.isRateLimited('statuses/filter')) {
+          const resetTime = this.rateLimiter.getResetTime('statuses/filter');
           logger.warn('Stream creation rate limited', { resetInMs: resetTime });
           await new Promise(resolve => setTimeout(resolve, resetTime));
         }
 
         const stream = this.client.stream('statuses/filter', { track: searchSymbols });
-        rateLimiter.recordCall('statuses/filter');
+        this.rateLimiter.updateFromHeaders('statuses/filter', {});
         this.setupStreamHandlers(stream);
         return stream;
       } catch (error) {
-        errorReporting.reportError(error, { 
+        metrics.incrementApiErrors(); // Increment errors before throwing
+        const streamError = new Error('Stream Error');
+        streamError.originalError = error;
+        errorReporting.reportError(streamError, { 
           operation: 'startStream',
           searchSymbols 
         });
-        throw error;
+        throw streamError;
       }
     }, this.retryConfig);
   }
@@ -98,16 +102,13 @@ class TwitterService {
    * @private
    */
   setupStreamHandlers(stream) {
-    const errorHandler = errorReporting.createErrorHandler('stream-error');
-    const disconnectHandler = errorReporting.createErrorHandler('stream-disconnect');
-
     stream.on('tweet', (tweet) => this.handleIncomingTweet(tweet));
     stream.on('error', (error) => {
-      errorHandler(error);
+      errorReporting.reportError(error, { type: 'stream-error' });
       metrics.incrementApiErrors();
     });
     stream.on('disconnect', (disconnectMessage) => {
-      disconnectHandler(new Error('Stream disconnected: ' + disconnectMessage));
+      errorReporting.reportError(new Error(disconnectMessage), { type: 'stream-disconnect' });
       metrics.incrementStreamDisconnects();
     });
     stream.on('connect', () => {
@@ -126,7 +127,7 @@ class TwitterService {
    */
   async handleIncomingTweet(tweet) {
     try {
-      // Check cache first
+      // Cache check - return early if already processed
       if (tweetCache.has(tweet.id_str)) {
         metrics.incrementTweetsSkipped();
         logger.debug('Tweet already processed', { tweetId: tweet.id_str });
@@ -144,14 +145,15 @@ class TwitterService {
           tweetId: tweet.id_str,
           username: tweet.user.screen_name
         });
-        
-        // Add to cache before queueing
+
+        // Add to cache first
         tweetCache.set(tweet.id_str, {
           processed: false,
           timestamp: Date.now()
         });
         
         this.tweetQueue.push(tweet);
+        metrics.incrementTweetsProcessed();
       } else {
         metrics.incrementTweetsSkipped();
       }
@@ -187,7 +189,7 @@ class TwitterService {
     }
 
     return (
-      tweet.retweeted_status !== 'undefined' &&
+      tweet.retweeted_status === undefined &&
       !text.startsWith('rt ') &&
       !tweet.favorited &&
       tweet.user.following === null &&
@@ -237,47 +239,40 @@ class TwitterService {
           return null;
         }
 
-        if (rateLimiter.isRateLimited('favorites/create')) {
-          const resetTime = rateLimiter.getResetTime('favorites/create');
-          logger.warn('Favorite action rate limited', { 
-            tweetId,
-            resetInMs: resetTime 
-          });
-          // Add to queue for retry
+        if (this.rateLimiter.isRateLimited('favorites/create')) {
+          const resetTime = this.rateLimiter.getResetTime('favorites/create');
+          logger.warn('Favorite action rate limited', { tweetId, resetInMs: resetTime });
           this.tweetQueue.unshift({ id_str: tweetId });
           return null;
         }
 
         const result = await this.client.post('favorites/create', { id: tweetId });
-        rateLimiter.recordCall('favorites/create');
-        
-        // Update rate limits from response headers
-        if (result.resp && result.resp.headers) {
-          rateLimiter.updateFromHeaders('favorites/create', result.resp.headers);
-        }
+        this.rateLimiter.updateFromHeaders('favorites/create', result.resp?.headers || {});
 
-        // Update cache to mark as processed
         tweetCache.set(tweetId, {
           processed: true,
           timestamp: Date.now()
         });
-        
+
         logger.info('Successfully favorited tweet', { tweetId });
         metrics.incrementTweetsFavorited();
         return result;
       } catch (error) {
-        if (error.code === 88) { // Rate limit exceeded
-          rateLimiter.updateFromHeaders('favorites/create', error.twitterReply.headers);
-          // Re-add to queue for retry
+        metrics.incrementApiErrors(); // Increment errors before throwing
+        if (error.code === 88) {
+          this.rateLimiter.updateFromHeaders('favorites/create', error.twitterReply?.headers || {});
           this.tweetQueue.unshift({ id_str: tweetId });
           logger.warn('Rate limit exceeded while favoriting', { tweetId });
           return null;
         }
-        errorReporting.reportError(error, {
+        
+        const apiError = new Error('API Error');
+        apiError.originalError = error;
+        errorReporting.reportError(apiError, {
           operation: 'favoriteTweet',
           tweetId
         });
-        throw error;
+        throw apiError;
       }
     }, this.retryConfig);
   }

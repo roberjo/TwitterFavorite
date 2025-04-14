@@ -1,13 +1,73 @@
 const logger = require('../logger');
 const metrics = require('../utils/metrics');
-const { DataPersistenceService } = require('./DataPersistenceService');
+const DataPersistenceService = require('./DataPersistenceService');
 
 class CleanupService {
-  constructor() {
+  constructor(options = {}) {
     this.cleanupHandlers = new Set();
+    this.intervals = new Set();
     this.isShuttingDown = false;
-    this.dataPersistence = new DataPersistenceService();
+    this.dataPersistence = new DataPersistenceService(options.persistenceConfig);
+
+    // Default intervals
+    this.cacheCleanupInterval = options.cacheCleanupInterval || 300000; // 5 minutes
+    this.metricsRotationInterval = options.metricsRotationInterval || 86400000; // 24 hours
+
     this.setupSignalHandlers();
+  }
+
+  start() {
+    // Start periodic cache cleanup
+    const cacheInterval = setInterval(() => {
+      this.runNow().catch(error => {
+        logger.error('Periodic cleanup failed', { error });
+      });
+    }, this.cacheCleanupInterval);
+    this.intervals.add(cacheInterval);
+
+    // Start periodic metrics rotation
+    const metricsInterval = setInterval(() => {
+      metrics.logMetrics();
+      this.dataPersistence.saveMetrics(metrics.getMetrics())
+        .catch(error => {
+          logger.error('Failed to save metrics', { error });
+        });
+    }, this.metricsRotationInterval);
+    this.intervals.add(metricsInterval);
+
+    logger.info('Cleanup service started', {
+      cacheInterval: this.cacheCleanupInterval,
+      metricsInterval: this.metricsRotationInterval
+    });
+  }
+
+  stop() {
+    for (const interval of this.intervals) {
+      clearInterval(interval);
+    }
+    this.intervals.clear();
+    logger.info('Cleanup service stopped');
+  }
+
+  async runNow() {
+    try {
+      const cacheSize = tweetCache.size();
+      await tweetCache.cleanup(3600000); // Clean tweets older than 1 hour
+      const newSize = tweetCache.size();
+      
+      if (newSize < cacheSize) {
+        logger.info('Cache cleanup completed', {
+          before: cacheSize,
+          after: newSize,
+          removed: cacheSize - newSize
+        });
+      }
+
+      metrics.logMetrics();
+    } catch (error) {
+      logger.error('Immediate cleanup failed', { error });
+      throw new Error('Cleanup failed');
+    }
   }
 
   /**
@@ -97,5 +157,4 @@ class CleanupService {
   }
 }
 
-// Export singleton instance
-module.exports = new CleanupService();
+module.exports = CleanupService;

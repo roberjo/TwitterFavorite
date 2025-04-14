@@ -13,7 +13,7 @@ class DataPersistenceService {
       metricsFileName: 'metrics.json',
       errorStatsFileName: 'error_stats.json',
       rotationInterval: 24 * 60 * 60 * 1000, // 24 hours
-      keepFiles: 7, // Keep 7 days of history
+      keepFiles: 7, // Keep 7 days of history by default
       ...config
     };
 
@@ -55,6 +55,41 @@ class DataPersistenceService {
   }
 
   /**
+   * Load historical metrics data
+   * @returns {Promise<Array>} Array of historical metrics
+   */
+  async loadHistoricalMetrics() {
+    try {
+      const files = await fs.readdir(this.config.dataDir);
+      const metricsFiles = files
+        .filter(file => file.includes(this.config.metricsFileName))
+        .sort((a, b) => b.localeCompare(a)); // Sort descending
+
+      const metrics = [];
+      for (const file of metricsFiles) {
+        try {
+          const filePath = path.join(this.config.dataDir, file);
+          const data = await fs.readFile(filePath, 'utf8');
+          metrics.push({
+            date: file.split('-')[0],
+            data: JSON.parse(data)
+          });
+        } catch (error) {
+          errorReporting.reportError(error, {
+            phase: 'metrics-file-read',
+            file
+          });
+        }
+      }
+
+      return metrics.slice(0, 2); // Return only most recent 2 files
+    } catch (error) {
+      errorReporting.reportError(error, { phase: 'metrics-load' });
+      return [];
+    }
+  }
+
+  /**
    * Save error statistics to disk
    * @param {Object} errorStats - Error statistics to save
    */
@@ -75,21 +110,57 @@ class DataPersistenceService {
   }
 
   /**
+   * Load historical error statistics
+   * @returns {Promise<Array>} Array of historical error statistics
+   */
+  async loadHistoricalErrorStats() {
+    try {
+      const files = await fs.readdir(this.config.dataDir);
+      const errorFiles = files
+        .filter(file => file.includes(this.config.errorStatsFileName))
+        .sort((a, b) => b.localeCompare(a)); // Sort descending
+
+      const errorStats = [];
+      for (const file of errorFiles) {
+        try {
+          const filePath = path.join(this.config.dataDir, file);
+          const data = await fs.readFile(filePath, 'utf8');
+          errorStats.push({
+            date: file.split('-')[0],
+            data: JSON.parse(data)
+          });
+        } catch (error) {
+          errorReporting.reportError(error, {
+            phase: 'error-stats-file-read',
+            file
+          });
+        }
+      }
+
+      return errorStats.slice(0, 2); // Return only most recent 2 files
+    } catch (error) {
+      errorReporting.reportError(error, { phase: 'error-stats-load' });
+      return [];
+    }
+  }
+
+  /**
    * Clean up old data files
    * @param {string} type - Type of files to clean up ('metrics' or 'errors')
    * @private
    */
   async cleanupOldFiles(type) {
     try {
-      const pattern = type === 'metrics' ? this.config.metricsFileName : this.config.errorStatsFileName;
-      const files = await fs.readdir(this.config.dataDir);
+      const pattern = type === 'metrics' 
+        ? this.config.metricsFileName 
+        : this.config.errorStatsFileName;
       
-      // Get all files of the specified type
-      const typeFiles = files.filter(file => file.includes(pattern))
+      const files = await fs.readdir(this.config.dataDir);
+      const typeFiles = files
+        .filter(file => file.includes(pattern))
         .sort()
         .reverse();
 
-      // Remove files beyond the keep limit
       if (typeFiles.length > this.config.keepFiles) {
         const filesToRemove = typeFiles.slice(this.config.keepFiles);
         for (const file of filesToRemove) {
@@ -101,60 +172,6 @@ class DataPersistenceService {
     } catch (error) {
       errorReporting.reportError(error, { phase: 'file-cleanup', fileType: type });
       logger.error('Failed to clean up old files', { error: error.message });
-    }
-  }
-
-  /**
-   * Load historical metrics data
-   * @returns {Promise<Array>} Array of historical metrics
-   */
-  async loadHistoricalMetrics() {
-    try {
-      const files = await fs.readdir(this.config.dataDir);
-      const metricsFiles = files.filter(file => file.includes(this.config.metricsFileName));
-      
-      const metrics = [];
-      for (const file of metricsFiles) {
-        const filePath = path.join(this.config.dataDir, file);
-        const data = await fs.readFile(filePath, 'utf8');
-        metrics.push({
-          date: file.split('-')[0],
-          data: JSON.parse(data)
-        });
-      }
-
-      return metrics.sort((a, b) => b.date.localeCompare(a.date));
-    } catch (error) {
-      errorReporting.reportError(error, { phase: 'metrics-load' });
-      logger.error('Failed to load historical metrics', { error: error.message });
-      return [];
-    }
-  }
-
-  /**
-   * Load historical error statistics
-   * @returns {Promise<Array>} Array of historical error statistics
-   */
-  async loadHistoricalErrorStats() {
-    try {
-      const files = await fs.readdir(this.config.dataDir);
-      const errorFiles = files.filter(file => file.includes(this.config.errorStatsFileName));
-      
-      const errorStats = [];
-      for (const file of errorFiles) {
-        const filePath = path.join(this.config.dataDir, file);
-        const data = await fs.readFile(filePath, 'utf8');
-        errorStats.push({
-          date: file.split('-')[0],
-          data: JSON.parse(data)
-        });
-      }
-
-      return errorStats.sort((a, b) => b.date.localeCompare(a.date));
-    } catch (error) {
-      errorReporting.reportError(error, { phase: 'error-stats-load' });
-      logger.error('Failed to load historical error statistics', { error: error.message });
-      return [];
     }
   }
 }

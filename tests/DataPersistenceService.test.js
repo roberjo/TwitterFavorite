@@ -9,6 +9,7 @@ jest.mock('../src/services/ErrorReportingService');
 describe('DataPersistenceService', () => {
   let service;
   let tempDir;
+  const mockDate = new Date('2025-04-13');
 
   beforeEach(async () => {
     // Create a temporary directory for testing
@@ -17,6 +18,25 @@ describe('DataPersistenceService', () => {
       dataDir: tempDir,
       keepFiles: 3 // Keep fewer files for testing
     });
+
+    // Create test files with fixed dates
+    await fs.writeFile(
+      path.join(tempDir, '2025-04-13-metrics.json'),
+      JSON.stringify({ test: 'data1' })
+    );
+    await fs.writeFile(
+      path.join(tempDir, '2025-04-12-metrics.json'),
+      JSON.stringify({ test: 'data2' })
+    );
+
+    await fs.writeFile(
+      path.join(tempDir, '2025-04-13-error_stats.json'),
+      JSON.stringify({ test: 'error1' })
+    );
+    await fs.writeFile(
+      path.join(tempDir, '2025-04-12-error_stats.json'),
+      JSON.stringify({ test: 'error2' })
+    );
   });
 
   afterEach(async () => {

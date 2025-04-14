@@ -31,7 +31,8 @@ const searchSymbols = [
 const INTERVALS = {
   FIVE_MINUTES: 5 * 60 * 1000,
   TWO_MINUTES: 2 * 60 * 1000,
-  ONE_MINUTE: 1 * 60 * 1000
+  ONE_MINUTE: 1 * 60 * 1000,
+  THIRTY_SECONDS: 30 * 1000
 };
 
 /**
@@ -52,6 +53,7 @@ class TwitterBot {
     this.stream = null;
     this.isProcessing = false;
     this.isShuttingDown = false;
+    this.processingInterval = null;
 
     // Wrap critical methods with error reporting
     this.startTweetCollector = errorReporting.wrapAsync(
@@ -82,6 +84,12 @@ class TwitterBot {
       
       // Setup graceful shutdown
       this.setupShutdownHandlers();
+
+      // Start processing tweets periodically
+      this.processingInterval = setInterval(
+        () => this.processTweets(),
+        INTERVALS.THIRTY_SECONDS
+      );
     } catch (error) {
       errorReporting.reportError(error, { phase: 'startup' });
       logger.error('Failed to start TwitterFavorite bot', { error: error.message });
@@ -183,6 +191,12 @@ class TwitterBot {
       // Log final statistics
       metrics.logMetrics();
       errorReporting.logErrorStats();
+
+      // Stop periodic tweet processing
+      if (this.processingInterval) {
+        clearInterval(this.processingInterval);
+        this.processingInterval = null;
+      }
     } catch (error) {
       errorReporting.reportError(error, { phase: 'shutdown' });
       logger.error('Error during shutdown', { error: error.message });
@@ -306,6 +320,49 @@ class TwitterBot {
     };
 
     setTimeout(processTweets, 30000);
+  }
+
+  async processTweets() {
+    if (this.isProcessing || this.cleanupService.isShuttingDown()) {
+      return;
+    }
+
+    this.isProcessing = true;
+    const startTime = Date.now();
+
+    try {
+      const queueSize = this.twitterService.tweetQueue.length;
+      metrics.recordQueueSize(queueSize);
+
+      if (queueSize === 0) {
+        return;
+      }
+
+      logger.debug('Processing tweet queue', { size: queueSize });
+
+      while (this.twitterService.tweetQueue.length > 0) {
+        const tweet = this.twitterService.tweetQueue.shift();
+        await this.twitterService.favoriteTweet(tweet.id_str);
+
+        // Break if shutting down
+        if (this.cleanupService.isShuttingDown()) {
+          break;
+        }
+      }
+
+      const processingTime = Date.now() - startTime;
+      metrics.recordProcessingTime(processingTime);
+
+      logger.debug('Tweet processing completed', {
+        processed: queueSize - this.twitterService.tweetQueue.length,
+        remaining: this.twitterService.tweetQueue.length,
+        timeMs: processingTime
+      });
+    } catch (error) {
+      logger.error('Error processing tweets', { error });
+    } finally {
+      this.isProcessing = false;
+    }
   }
 
   getTweetAge(tweet) {

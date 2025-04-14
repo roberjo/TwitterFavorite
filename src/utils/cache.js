@@ -24,7 +24,7 @@ class TweetCache {
     }
     this.cache.set(tweetId, {
       data,
-      timestamp: Date.now()
+      timestamp: this._getNow()
     });
   }
 
@@ -51,14 +51,20 @@ class TweetCache {
   /**
    * Remove expired entries from the cache
    * @param {number} maxAge - Maximum age in milliseconds
+   * @returns {boolean} Whether any entries were removed
    */
   cleanup(maxAge) {
-    const now = Date.now();
+    const now = this._getNow();
+    let hasChanges = false;
+
     for (const [key, value] of this.cache.entries()) {
       if (now - value.timestamp > maxAge) {
         this.cache.delete(key);
+        hasChanges = true;
       }
     }
+
+    return hasChanges;
   }
 
   /**
@@ -74,6 +80,14 @@ class TweetCache {
    */
   clear() {
     this.cache.clear();
+  }
+
+  /**
+   * Get the current timestamp
+   * @returns {number} Current timestamp in milliseconds
+   */
+  _getNow() {
+    return Date.now();
   }
 }
 

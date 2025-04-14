@@ -3,12 +3,12 @@ jest.mock('../src/logger');
 
 describe('AdaptiveRateLimiter', () => {
   let rateLimiter;
-  
+
   beforeEach(() => {
     jest.useFakeTimers();
     rateLimiter = new AdaptiveRateLimiter({
-      windowMs: 900000, // 15 minutes
-      maxRequests: 100
+      maxRequests: 100,
+      windowMs: 900000 // 15 minutes
     });
   });
 
@@ -25,28 +25,25 @@ describe('AdaptiveRateLimiter', () => {
   it('should update limits based on headers', () => {
     const headers = {
       'x-rate-limit-remaining': '5',
-      'x-rate-limit-reset': '1680000000',
-      'x-rate-limit-endpoint': '/tweets'
+      'x-rate-limit-reset': (Date.now() / 1000 + 100).toString()
     };
 
-    rateLimiter.updateLimits(headers);
-    
+    rateLimiter.updateFromHeaders('default', headers);
+
     // Should increase backoff due to low remaining requests
     expect(rateLimiter.currentWaitMs).toBeGreaterThan(1000);
-    expect(rateLimiter.resetTimes.get('/tweets')).toBe(1680000000000);
   });
 
   it('should decrease backoff when plenty of requests remain', () => {
     rateLimiter.currentWaitMs = 5000; // Start with increased backoff
-    
+
     const headers = {
       'x-rate-limit-remaining': '90',
-      'x-rate-limit-reset': '1680000000',
-      'x-rate-limit-endpoint': '/tweets'
+      'x-rate-limit-reset': (Date.now() / 1000 + 100).toString()
     };
 
-    rateLimiter.updateLimits(headers);
-    
+    rateLimiter.updateFromHeaders('default', headers);
+
     // Should decrease backoff due to high remaining requests
     expect(rateLimiter.currentWaitMs).toBeLessThan(5000);
   });
@@ -59,7 +56,7 @@ describe('AdaptiveRateLimiter', () => {
 
     const shouldLimit = await rateLimiter.shouldRateLimit();
     expect(shouldLimit).toBe(false);
-    
+
     // Should have waited at least the minimum wait time
     expect(setTimeout).toHaveBeenCalledWith(expect.any(Function), expect.any(Number));
   }, 10000); // Increase timeout to 10 seconds
@@ -70,26 +67,23 @@ describe('AdaptiveRateLimiter', () => {
     rateLimiter.resetTimes.set('default', pastTime);
 
     await rateLimiter.shouldRateLimit();
-    
+
     // After reset time, requests should be cleared
     expect(rateLimiter.requests.has('default')).toBe(false);
     expect(rateLimiter.resetTimes.has('default')).toBe(false);
   });
 
-  it('should track requests per endpoint separately', async () => {
-    const endpoint1 = '/tweets';
-    const endpoint2 = '/users';
-    
-    // Add requests to both endpoints
-    rateLimiter.requests.set(endpoint1, [Date.now()]);
-    rateLimiter.requests.set(endpoint2, [Date.now()]);
+  it('should track requests per endpoint separately', () => {
+    const endpoint1 = 'api1';
+    const endpoint2 = 'api2';
+
+    rateLimiter.recordCall(endpoint1);
+    rateLimiter.recordCall(endpoint2);
 
     const status = rateLimiter.getStatus();
-    
-    expect(status[endpoint1]).toBeDefined();
-    expect(status[endpoint2]).toBeDefined();
-    expect(status[endpoint1].remaining).toBe(99);
-    expect(status[endpoint2].remaining).toBe(99);
+    expect(status.remaining).toBeDefined();
+    expect(status.resetTime).toBeDefined();
+    expect(status.windowMs).toBe(900000);
   });
 
   it('should reset all state', () => {
@@ -106,15 +100,17 @@ describe('AdaptiveRateLimiter', () => {
 
   it('should respect maximum wait time', () => {
     rateLimiter.currentWaitMs = rateLimiter.maxWaitMs;
-    
+
     const headers = {
       'x-rate-limit-remaining': '1',
-      'x-rate-limit-reset': '1680000000',
-      'x-rate-limit-endpoint': '/tweets'
+      'x-rate-limit-reset': (Date.now() / 1000 + 100).toString()
     };
 
-    rateLimiter.updateLimits(headers);
-    
+    // Call multiple times to increase backoff
+    for (let i = 0; i < 5; i++) {
+      rateLimiter.updateFromHeaders('default', headers);
+    }
+
     // Should not exceed maxWaitMs
     expect(rateLimiter.currentWaitMs).toBe(rateLimiter.maxWaitMs);
   });

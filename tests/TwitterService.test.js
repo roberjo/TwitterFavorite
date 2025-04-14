@@ -2,21 +2,20 @@ const TwitterService = require('../src/services/TwitterService');
 const tweetCache = require('../src/utils/cache');
 const metrics = require('../src/utils/metrics');
 
-// Mock dependencies
-jest.mock('twit');
 jest.mock('../src/logger');
-jest.mock('languagedetect');
 jest.mock('../src/utils/cache');
 jest.mock('../src/utils/metrics');
+jest.mock('../src/services/ErrorReportingService');
+jest.mock('twit');
 
 describe('TwitterService', () => {
   let twitterService;
-  const mockConfig = {
+  const testConfig = {
     twitterKeys: {
-      consumer_key: 'test',
-      consumer_secret: 'test',
-      access_token: 'test',
-      access_token_secret: 'test'
+      consumer_key: 'test_key',
+      consumer_secret: 'test_secret',
+      access_token: 'test_token',
+      access_token_secret: 'test_token_secret'
     },
     twitterConfig: {
       language: 'english'
@@ -25,8 +24,7 @@ describe('TwitterService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    twitterService = new TwitterService(mockConfig);
-    tweetCache.clear();
+    twitterService = new TwitterService(testConfig);
   });
 
   describe('isValidTweet', () => {
@@ -65,17 +63,19 @@ describe('TwitterService', () => {
     });
 
     it('should return true for valid tweet', () => {
-      twitterService.isEnglishTweet = jest.fn().mockReturnValue(true);
       const tweet = {
+        id_str: '123',
+        text: 'valid tweet',
         user: {
-          screen_name: 'validUser',
-          following: null,
-          followers_count: 100
+          screen_name: 'testuser',
+          followers_count: 100,
+          following: null
         },
         favorited: false,
         retweeted_status: 'undefined'
       };
-      expect(twitterService.shouldProcessTweet(tweet, 'valid tweet')).toBeTruthy();
+
+      expect(twitterService.shouldProcessTweet(tweet, tweet.text.toLowerCase())).toBeTruthy();
     });
   });
 
@@ -96,16 +96,19 @@ describe('TwitterService', () => {
     it('should cache and queue valid tweets', async () => {
       const tweet = {
         id_str: '123',
-        text: 'Test tweet',
+        text: 'valid tweet',
         user: {
           screen_name: 'testuser',
-          following: null,
-          followers_count: 100
-        }
+          followers_count: 100,
+          following: null
+        },
+        favorited: false,
+        retweeted_status: 'undefined'
       };
 
       tweetCache.has.mockReturnValue(false);
-      twitterService.isEnglishTweet = jest.fn().mockReturnValue(true);
+      tweetCache.set.mockImplementation(() => {});
+
       await twitterService.handleIncomingTweet(tweet);
 
       expect(tweetCache.set).toHaveBeenCalledWith('123', expect.any(Object));
@@ -139,7 +142,7 @@ describe('TwitterService', () => {
 
     it('should handle API errors', async () => {
       const error = new Error('API Error');
-      twitterService.client.post = jest.fn().mockRejectedValue(error);
+      twitterService.client.post.mockRejectedValue(error);
 
       await expect(twitterService.favoriteTweet('123')).rejects.toThrow('API Error');
       expect(metrics.incrementApiErrors).toHaveBeenCalled();
@@ -151,7 +154,7 @@ describe('TwitterService', () => {
       const mockStream = {
         on: jest.fn()
       };
-      twitterService.client.stream = jest.fn().mockReturnValue(mockStream);
+      twitterService.client.stream.mockReturnValue(mockStream);
 
       await twitterService.startStream(['test']);
 
@@ -162,7 +165,7 @@ describe('TwitterService', () => {
 
     it('should handle stream errors', async () => {
       const error = new Error('Stream Error');
-      twitterService.client.stream = jest.fn().mockImplementation(() => {
+      twitterService.client.stream.mockImplementation(() => {
         throw error;
       });
 
@@ -174,7 +177,7 @@ describe('TwitterService', () => {
   describe('cache cleanup', () => {
     it('should set up cache cleanup interval', () => {
       jest.useFakeTimers();
-      new TwitterService(mockConfig);
+      new TwitterService(testConfig);
 
       jest.advanceTimersByTime(60 * 60 * 1000); // 1 hour
       expect(tweetCache.cleanup).toHaveBeenCalled();

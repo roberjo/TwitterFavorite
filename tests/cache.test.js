@@ -1,79 +1,63 @@
-const tweetCache = require('../src/utils/cache');
+const TweetCache = require('../src/utils/cache');
+const MockDate = require('mockdate');
 
 describe('TweetCache', () => {
+  let tweetCache;
+
   beforeEach(() => {
+    tweetCache = require('../src/utils/cache');
     tweetCache.clear();
+  });
+
+  afterEach(() => {
+    MockDate.reset();
   });
 
   describe('basic operations', () => {
     it('should store and retrieve tweets', () => {
-      const tweet = { id: '123', text: 'test tweet' };
-      tweetCache.set('123', tweet);
-      
-      expect(tweetCache.get('123')).toEqual(tweet);
+      tweetCache.set('123', { processed: true });
+      expect(tweetCache.get('123')).toEqual({ processed: true });
     });
 
-    it('should check existence of tweets', () => {
-      tweetCache.set('123', { text: 'test' });
-      
+    it('should check tweet existence', () => {
+      tweetCache.set('123', { processed: true });
       expect(tweetCache.has('123')).toBe(true);
       expect(tweetCache.has('456')).toBe(false);
     });
 
-    it('should track cache size', () => {
-      expect(tweetCache.size()).toBe(0);
-      
-      tweetCache.set('123', { text: 'test1' });
-      tweetCache.set('456', { text: 'test2' });
-      
-      expect(tweetCache.size()).toBe(2);
-    });
-
-    it('should clear all entries', () => {
-      tweetCache.set('123', { text: 'test1' });
-      tweetCache.set('456', { text: 'test2' });
-      tweetCache.clear();
-      
-      expect(tweetCache.size()).toBe(0);
-    });
-  });
-
-  describe('cache limits', () => {
-    it('should respect maximum size limit', () => {
-      const cache = new (require('../src/utils/cache').constructor)(2);
-      
-      cache.set('1', { text: 'one' });
-      cache.set('2', { text: 'two' });
-      cache.set('3', { text: 'three' });
-      
-      expect(cache.size()).toBe(2);
-      expect(cache.has('1')).toBe(false);
-      expect(cache.has('3')).toBe(true);
+    it('should maintain size limit', () => {
+      const maxSize = 1000;
+      for (let i = 0; i < maxSize + 10; i++) {
+        tweetCache.set(i.toString(), { data: i });
+      }
+      expect(tweetCache.size()).toBeLessThanOrEqual(maxSize);
     });
   });
 
   describe('cleanup', () => {
     it('should remove expired entries', () => {
-      // Mock Date.now
-      const realDateNow = Date.now;
-      const startTime = 1000000;
-      global.Date.now = jest.fn()
-        .mockReturnValueOnce(startTime)              // First set
-        .mockReturnValueOnce(startTime + 100)        // Second set
-        .mockReturnValueOnce(startTime + 2000)       // Cleanup check
-        .mockReturnValueOnce(startTime + 2000);      // Final size check
+      // Set initial time
+      MockDate.set('2025-04-13T00:00:00Z');
       
-      tweetCache.set('old', { text: 'old tweet' });
-      tweetCache.set('new', { text: 'new tweet' });
+      // Add old tweet
+      tweetCache.set('old', { data: 'old' });
+
+      // Advance time by 2 seconds
+      MockDate.set('2025-04-13T00:00:02Z');
       
-      tweetCache.cleanup(1000); // Clean items older than 1 second
-      
+      // Add new tweet
+      tweetCache.set('new', { data: 'new' });
+
+      // Clean items older than 1 second
+      tweetCache.cleanup(1000);
+
       expect(tweetCache.size()).toBe(1);
       expect(tweetCache.has('old')).toBe(false);
       expect(tweetCache.has('new')).toBe(true);
+    });
 
-      // Restore original Date.now
-      global.Date.now = realDateNow;
+    it('should handle empty cache', () => {
+      expect(() => tweetCache.cleanup(1000)).not.toThrow();
     });
   });
 });

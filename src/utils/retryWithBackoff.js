@@ -42,7 +42,8 @@ async function retryWithBackoff(fn, config = {}) {
   
   for (let attempt = 1; attempt <= finalConfig.maxRetries; attempt++) {
     try {
-      return await fn();
+      const result = await fn();
+      return result;
     } catch (error) {
       lastError = error;
       

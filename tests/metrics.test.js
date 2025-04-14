@@ -1,5 +1,6 @@
 const os = require('os');
 const metrics = require('../src/utils/metrics');
+const MockDate = require('mockdate');
 
 jest.mock('../src/logger');
 jest.useFakeTimers();
@@ -8,6 +9,10 @@ describe('Metrics', () => {
   beforeEach(() => {
     metrics.reset();
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    MockDate.reset();
   });
 
   describe('basic metrics', () => {
@@ -47,7 +52,8 @@ describe('Metrics', () => {
     });
 
     it('should maintain maximum queue size history', () => {
-      for (let i = 0; i < 150; i++) {
+      // Add 100 queue sizes (50-149)
+      for (let i = 50; i < 150; i++) {
         metrics.recordQueueSize(i);
       }
 
@@ -134,7 +140,13 @@ describe('Metrics', () => {
 
   describe('runtime metrics', () => {
     it('should track uptime correctly', () => {
-      jest.advanceTimersByTime(5000);
+      // Set fixed start time and current time
+      MockDate.set('2025-04-13T00:00:00Z');
+      const startTime = Date.now();
+      metrics.startTime = startTime;
+
+      // Advance time by 5 seconds
+      MockDate.set('2025-04-13T00:00:05Z');
       
       const report = metrics.getMetrics();
       expect(report.runtime.uptime).toBe(5);
