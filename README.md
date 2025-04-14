@@ -1,10 +1,9 @@
 TwitterFavorite
 =======================
 
-A boilerplate for **Node.js** Twitter Automation applications.
+A Node.js Twitter Automation application that automatically favorites tweets based on configurable criteria.
 
-Hat tip to Sahat Yalkabov for his [Hackathon Starter](https://github.com/sahat/hackathon-starter) project which is an inspiration. 
-
+Hat tip to Sahat Yalkabov for his [Hackathon Starter](https://github.com/sahat/hackathon-starter) project which is an inspiration.
 
 Table of Contents
 -----------------
@@ -12,7 +11,8 @@ Table of Contents
 - [Features](#features)
 - [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
-- [Obtaining API Keys](#obtaining-api-keys)
+- [Testing](#testing)
+- [Code Quality](#code-quality)
 - [Project Structure](#project-structure)
 - [List of Packages](#list-of-packages)
 - [Useful Tools and Resources](#useful-tools-and-resources)
@@ -32,12 +32,19 @@ Table of Contents
 
 Features
 --------
-- **API Examples**: Twitter
+- **Automated Tweet Favoriting**: Intelligently favorites tweets based on language, content, and user metrics
+- **Adaptive Rate Limiting**: Smart rate limiting with exponential backoff to stay within Twitter API limits
+- **Error Handling**: Comprehensive error tracking, reporting and recovery mechanisms
+- **Metrics & Monitoring**: Detailed metrics collection and reporting for monitoring bot performance
+- **Data Persistence**: Historical data storage for metrics and error analysis
+- **Test Coverage**: Extensive unit test coverage with Jest
+- **Code Quality**: ESLint integration with Google style guide
 
 Prerequisites
 -------------
 
-- [Node.js 6.0+](http://nodejs.org)
+- [Node.js 14.0+](http://nodejs.org)
+- Twitter Developer Account with API credentials
 - Command Line Tools
  - <img src="http://deluge-torrent.org/images/apple-logo.gif" height="17">&nbsp;**Mac OS X:** [Xcode](https://itunes.apple.com/us/app/xcode/id497799835?mt=12) (or **OS X 10.9+**: `xcode-select --install`)
  - <img src="http://dc942d419843af05523b-ff74ae13537a01be6cfec5927837dcfe.r14.cf1.rackcdn.com/wp-content/uploads/windows-8-50x50.jpg" height="17">&nbsp;**Windows:** [Visual Studio](https://www.visualstudio.com/products/visual-studio-community-vs)
@@ -53,11 +60,9 @@ here is another great tutorial for complete beginners - [Getting Started With No
 Getting Started
 ---------------
 
-The easiest way to get started is to clone the repository:
-
 ```bash
 # Get the latest snapshot
-git clone --depth=1 https://github.com/roberjo/TwitterFavorite.git myproject
+git clone https://github.com/roberjo/TwitterFavorite.git myproject
 
 # Change directory
 cd myproject
@@ -65,51 +70,92 @@ cd myproject
 # Install NPM dependencies
 npm install
 
-# Then simply start your app
-node index.js
+# Copy example environment file
+cp .env.example .env
+
+# Configure your Twitter API credentials in .env
+
+# Run tests to verify setup
+npm test
+
+# Start the application
+npm start
+
+# Or use nodemon for development
+npm run dev
 ```
 
-**Note:** I highly recommend installing [Nodemon](https://github.com/remy/nodemon).
-It watches for any changes in your  node.js app and automatically restarts the
-server. Once installed, instead of `node app.js` use `nodemon app.js`. It will
-save you a lot of time in the long run, because you won't need to manually
-restart the server each time you make a small change in code. To install, run
-`sudo npm install -g nodemon`.
+Testing
+-------
 
-Obtaining API Keys
-------------------
+The project uses Jest for testing. The test suite includes unit tests for all major components:
 
-To use any of the included APIs, you will need
-to obtain appropriate credentials: Client ID, Client Secret, API Key, or
-Username & Password. You will need to go through each provider to generate new
-credentials.
+- Twitter Service integration
+- Rate limiting logic
+- Data persistence
+- Error handling
+- Cache management
+- Configuration validation
+- Metrics collection
 
-<hr>
+Run the tests with:
 
-<img src="https://g.twimg.com/ios_homescreen_icon.png" width="90">
+```bash
+# Run all tests
+npm test
 
-- Sign in at <a href="https://apps.twitter.com/" target="_blank">https://apps.twitter.com</a>
-- Click **Create a new application**
-- Enter your application name, website and description
-- For **Callback URL**: http://127.0.0.1:8080/auth/twitter/callback
-- Go to **Settings** tab
-- Under *Application Type* select **Read and Write** access
-- Check the box **Allow this application to be used to Sign in with Twitter**
-- Click **Update this Twitter's applications settings**
-- Copy and paste *Consumer Key* and *Consumer Secret* keys into `.env` file
+# Run tests with coverage report
+npm run test:coverage
 
-<hr>
+# Run tests in watch mode
+npm test -- --watch
+```
 
+Current test coverage metrics:
+- Statements: 80%+ coverage
+- Branches: 80%+ coverage
+- Functions: 80%+ coverage
+- Lines: 80%+ coverage
+
+Key test files:
+- `tests/TwitterService.test.js`: Core Twitter integration tests
+- `tests/TwitterBot.test.js`: Main bot functionality tests
+- `tests/cache.test.js`: Tweet caching tests
+- `tests/metrics.test.js`: Metrics collection tests
+- `tests/retryWithBackoff.test.js`: Retry mechanism tests
+- `tests/twitterRateLimiter.test.js`: Rate limiting tests
+
+Code Quality
+------------
+
+The project uses ESLint with the Google JavaScript Style Guide configuration. Run the linter with:
+
+```bash
+# Check code style
+npm run lint
+
+# Auto-fix linting issues
+npm run lint:fix
+```
+
+Key ESLint rules enforced:
+- Google JavaScript Style Guide compliance
+- Proper error handling
+- No unused variables
+- Consistent code formatting
 
 Project Structure
 -----------------
 
 | Name                               | Description                                                  |
 | ---------------------------------- | ------------------------------------------------------------ |
-| **src**/                           | Application source directory.                                |
-| **src**/bot.js                     | Main applicaton.                                             |
-| **src**/config.js                  | Dotenv and configuration settings.                           |
-| **src**/**helpers**/isReply.js     | Detects if a tweet is a reply.                               |
+| **src/**                           | Source files                                                |
+| **src/services/**                  | Core services (Twitter, Data, Error handling)               |
+| **src/utils/**                     | Utilities (caching, metrics, rate limiting)                 |
+| **src/helpers/**                   | Helper functions                                            |
+| **src/middleware/**                | Express middleware                                          |
+| **tests/**                         | Test files                                                  |
+| **config/**                        | Configuration files                                         |
 | .gitignore                         | Git ignore rules.                                            |
 | eslintrc.json                      | Linter rules                                                 |
 | .env.example                       | Your API keys, tokens, etc.                                  |
@@ -134,7 +180,8 @@ List of Packages
 | log-timestamp                   | Adds timestampes to console log                                       |
 | moment                          | Javascript datetime handler                                           |
 | underscore                      | Functional programming helpers                                        |
-
+| jest                            | JavaScript testing framework                                          |
+| eslint                          | JavaScript linter                                                    |
 
 Useful Tools and Resources
 --------------------------
@@ -159,7 +206,6 @@ Recommended Design Resources
 - [Medium Scroll Effect](http://codepen.io/andreasstorm/pen/pyjEh) - Fade in/out header background image as you scroll.
 - [GeoPattern](https://github.com/btmills/geopattern) - SVG background pattern generator.
 - [Trianglify](https://github.com/qrohlf/trianglify) - SVG low-poly background pattern generator.
-
 
 Recommended Node.js Libraries
 -----------------------------
@@ -207,7 +253,6 @@ FAQ
 ---
 
 ###TODO - Setup FAQ
-
 
 Cheatsheets
 -----------
@@ -427,7 +472,6 @@ docker-compose up web
 ```
 
 To view the app, find your docker ip address + port 8080 ( this will typically be http://localhost:8080/ ).  To use a port other than 8080, you would need to modify the port in app.js, Dockerfile and docker-compose.yml.
-
 
 Deployment
 ----------

@@ -179,7 +179,45 @@ function sanitizeConfig(config) {
   return sanitized;
 }
 
+/**
+ * Validates Twitter API keys
+ */
+function validateTwitterKeys(keys) {
+  if (!keys) {
+    throw new ConfigValidationError('Missing required Twitter API keys');
+  }
+
+  const requiredKeys = ['consumer_key', 'consumer_secret', 'access_token', 'access_token_secret'];
+  
+  for (const key of requiredKeys) {
+    if (!keys[key]) {
+      throw new ConfigValidationError('Missing required Twitter API key', [key]);
+    }
+    if (typeof keys[key] !== 'string') {
+      throw new ConfigValidationError('Invalid Twitter API key type', [key]);
+    }
+  }
+}
+
+/**
+ * Validates Twitter configuration settings
+ */
+function validateTwitterConfig(config) {
+  if (!config.language) {
+    throw new ConfigValidationError('Missing required language configuration');
+  }
+
+  const numericFields = ['retweet_rate', 'like_rate', 'quote_rate', 'search_count'];
+  for (const field of numericFields) {
+    if (config[field] && isNaN(parseInt(config[field], 10))) {
+      throw new ConfigValidationError(`${field} must be a positive number`);
+    }
+  }
+}
+
 module.exports = {
   validateConfig,
+  validateTwitterKeys,
+  validateTwitterConfig,
   ConfigValidationError
 };

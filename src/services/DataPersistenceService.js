@@ -159,4 +159,5 @@ class DataPersistenceService {
   }
 }
 
+// Export the class directly instead of a singleton instance
 module.exports = DataPersistenceService;

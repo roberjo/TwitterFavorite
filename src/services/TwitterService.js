@@ -19,6 +19,8 @@ const rateLimiter = require('../utils/twitterRateLimiter');
 const { retryWithBackoff } = require('../utils/retryWithBackoff');
 const errorReporting = require('./ErrorReportingService');
 
+const ONE_HOUR = 60 * 60 * 1000; // Define constant at module level
+
 /**
  * Service class for handling Twitter API interactions
  * @class TwitterService
@@ -36,7 +38,6 @@ class TwitterService {
     
     // Start cache cleanup interval
     setInterval(() => {
-      const ONE_HOUR = 60 * 60 * 1000;
       tweetCache.cleanup(ONE_HOUR);
     }, ONE_HOUR);
 

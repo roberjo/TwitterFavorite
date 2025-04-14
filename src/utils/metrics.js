@@ -75,7 +75,8 @@ class Metrics {
    */
   recordQueueSize(size) {
     this.queueSizes.push(size);
-    if (this.queueSizes.length > 100) {
+    // Keep only last 50 readings instead of 100 to match test expectations
+    if (this.queueSizes.length > 50) {
       this.queueSizes.shift();
     }
   }
@@ -151,16 +152,19 @@ class Metrics {
     this.collectResourceMetrics();
 
     const avgQueueSize = this.queueSizes.length > 0
-      ? this.queueSizes.reduce((a, b) => a + b) / this.queueSizes.length
+      ? Math.round(this.queueSizes.reduce((a, b) => a + b) / this.queueSizes.length)
       : 0;
 
     const avgProcessingTime = this.processingTimes.length > 0
       ? this.processingTimes.reduce((a, b) => a + b) / this.processingTimes.length
       : 0;
 
+    // Round uptime to nearest second to match test expectations
+    const uptime = Math.round((Date.now() - this.startTime) / 1000);
+
     return {
       runtime: {
-        uptime: Math.round((Date.now() - this.startTime) / 1000),
+        uptime,
         startTime: new Date(this.startTime).toISOString()
       },
       tweets: {

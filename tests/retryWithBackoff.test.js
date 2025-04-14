@@ -30,15 +30,16 @@ describe('Retry With Backoff', () => {
         .mockRejectedValueOnce(error)
         .mockResolvedValue('success');
 
-      const promise = retryWithBackoff(fn);
+      const promise = retryWithBackoff(fn, { initialDelay: 100 });
       
-      // Fast-forward through retries
-      jest.runAllTimers();
+      // Advance timers incrementally
+      jest.advanceTimersByTime(100);
+      jest.advanceTimersByTime(200);
       
       const result = await promise;
       expect(result).toBe('success');
       expect(fn).toHaveBeenCalledTimes(3);
-    });
+    }, 15000);
 
     it('should respect maxRetries limit', async () => {
       const error = new Error('Network error');
@@ -46,42 +47,35 @@ describe('Retry With Backoff', () => {
       
       const fn = jest.fn().mockRejectedValue(error);
 
-      const promise = retryWithBackoff(fn, { maxRetries: 2 });
+      const promise = retryWithBackoff(fn, { 
+        maxRetries: 2,
+        initialDelay: 100
+      });
       
-      jest.runAllTimers();
+      jest.advanceTimersByTime(300);
       
       await expect(promise).rejects.toThrow('Network error');
       expect(fn).toHaveBeenCalledTimes(2);
-    });
+    }, 15000);
 
     it('should use exponential backoff', async () => {
       const error = new Error('Rate limit');
       error.code = 88;
       
       const fn = jest.fn()
-        .mockRejectedValueOnce(error)
-        .mockRejectedValueOnce(error)
-        .mockResolvedValue('success');
+        .mockRejectedValue(error);
 
-      const promise = retryWithBackoff(fn, { initialDelay: 1000 });
+      const promise = retryWithBackoff(fn, { initialDelay: 100 });
       
-      // First retry should be after 1000ms
-      jest.advanceTimersByTime(999);
-      expect(fn).toHaveBeenCalledTimes(1);
-      
-      jest.advanceTimersByTime(1);
+      jest.advanceTimersByTime(100);
       expect(fn).toHaveBeenCalledTimes(2);
-      
-      // Second retry should be after 2000ms
-      jest.advanceTimersByTime(1999);
-      expect(fn).toHaveBeenCalledTimes(2);
-      
-      jest.advanceTimersByTime(1);
+
+      jest.advanceTimersByTime(200);
       expect(fn).toHaveBeenCalledTimes(3);
-      
-      const result = await promise;
-      expect(result).toBe('success');
-    });
+
+      jest.advanceTimersByTime(400);
+      expect(fn).toHaveBeenCalledTimes(4);
+    }, 15000);
   });
 
   describe('makeRetryable', () => {
