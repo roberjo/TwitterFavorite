@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to run tests against'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+        - development
+        - staging
+        - production
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run tests with coverage
+      run: npm run test:coverage
+      env:
+        NODE_ENV: ${{ github.event.inputs.environment || 'development' }}
+    
+    - name: Run linting
+      run: npm run lint
+    
+    - name: Generate coverage badge
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const coverage = JSON.parse(fs.readFileSync('./coverage/coverage-summary.json', 'utf8'));
+          const percentage = coverage.total.lines.pct;
+          const color = percentage > 90 ? 'brightgreen' : percentage > 80 ? 'green' : percentage > 70 ? 'yellow' : 'red';
+          const badgeUrl = `https://img.shields.io/badge/coverage-${percentage}%25-${color}`;
+          
+          let readme = fs.readFileSync('README.md', 'utf8');
+          const coverageBadgeRegex = /!\[Coverage\]\(https:\/\/img\.shields\.io\/badge\/coverage-.*?\)/;
+          
+          if (coverageBadgeRegex.test(readme)) {
+            readme = readme.replace(coverageBadgeRegex, `![Coverage](${badgeUrl})`);
+          } else {
+            readme = readme.replace('# TwitterFavorite', '# TwitterFavorite\n\n![Coverage](' + badgeUrl + ')');
+          }
+          
+          fs.writeFileSync('README.md', readme);
+
+    - name: Commit and push if README changed
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git diff --quiet && git diff --staged --quiet || (git add README.md && git commit -m "Update coverage badge" && git push)
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: coverage/
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results
+        path: |
+          coverage/
+          junit.xml
+        retention-days: 30 
