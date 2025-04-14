@@ -1,36 +1,33 @@
 const dotenv = require('dotenv');
+const path = require('path');
 const { validateConfig } = require('./utils/configValidator');
-const logger = require('./logger');
 
-// Load environment variables
-const result = dotenv.config();
-if (result.error) {
-  logger.error('Failed to load .env file', { error: result.error.message });
-  throw result.error;
-}
+// Load environment variables from .env file
+dotenv.config();
 
 const config = {
   twitterKeys: {
     consumer_key: process.env.TWITTER_CONSUMER_KEY,
     consumer_secret: process.env.TWITTER_CONSUMER_SECRET,
     access_token: process.env.TWITTER_ACCESS_TOKEN,
-    access_token_secret: process.env.TWITTER_ACCESS_TOKEN_SECRET,
-    timeout_ms: parseInt(process.env.TWITTER_TIMEOUT, 10) * 1000
+    access_token_secret: process.env.TWITTER_ACCESS_TOKEN_SECRET
   },
   twitterConfig: {
-    queryString: process.env.QUERY_STRING,
-    resultType: process.env.RESULT_TYPE,
-    language: process.env.LANGUAGE,
-    username: process.env.TWITTER_USERNAME,
-    retweet_rate: parseInt(process.env.TWITTER_RETWEET_RATE, 10),
-    like_rate: parseInt(process.env.TWITTER_LIKE_RATE, 10),
-    quote_rate: parseInt(process.env.TWITTER_QUOTE_RATE, 10),
-    search_count: parseInt(process.env.TWITTER_SEARCH_COUNT, 10),
-    randomReply: process.env.RANDOM_REPLY
+    language: process.env.TWITTER_LANGUAGE || 'english'
+  },
+  dataDirectory: path.join(process.cwd(), process.env.DATA_DIRECTORY || 'data'),
+  rateLimits: {
+    favorites: parseInt(process.env.RATE_LIMIT_FAVORITES, 10) || 75,
+    stream: parseInt(process.env.RATE_LIMIT_STREAM, 10) || 50
+  },
+  retryConfig: {
+    maxRetries: parseInt(process.env.MAX_RETRIES, 10) || 3,
+    initialDelay: parseInt(process.env.INITIAL_RETRY_DELAY, 10) || 2000,
+    maxDelay: parseInt(process.env.MAX_RETRY_DELAY, 10) || 30000
   }
 };
 
-// Validate configuration
-validateConfig(config);
+// Validate the configuration
+const validatedConfig = validateConfig(config);
 
-module.exports = config;
+module.exports = validatedConfig;

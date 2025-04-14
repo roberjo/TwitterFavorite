@@ -1,3 +1,4 @@
+const os = require('os');
 const logger = require('../logger');
 
 /**
@@ -6,69 +7,66 @@ const logger = require('../logger');
 class Metrics {
   constructor() {
     this.reset();
+    this.startTime = Date.now();
+    this.lastCpuUsage = process.cpuUsage();
+    this.lastResourceCheck = Date.now();
   }
 
   /**
    * Reset all metrics counters
    */
   reset() {
-    this.metrics = {
-      tweetsProcessed: 0,
-      tweetsFavorited: 0,
-      tweetsSkipped: 0,
-      apiErrors: 0,
-      streamDisconnects: 0,
-      processingTime: [],
-      queueSize: [],
-      startTime: Date.now()
-    };
+    this.tweetsProcessed = 0;
+    this.tweetsFavorited = 0;
+    this.tweetsSkipped = 0;
+    this.apiErrors = 0;
+    this.streamDisconnects = 0;
+    this.retryAttempts = 0;
+    this.queueSizes = [];
+    this.processingTimes = [];
+    this.resourceMetrics = [];
   }
 
   /**
    * Record tweet processing attempt
    */
   incrementTweetsProcessed() {
-    this.metrics.tweetsProcessed++;
+    this.tweetsProcessed++;
   }
 
   /**
    * Record successful tweet favorite
    */
   incrementTweetsFavorited() {
-    this.metrics.tweetsFavorited++;
+    this.tweetsFavorited++;
   }
 
   /**
    * Record skipped tweet
    */
   incrementTweetsSkipped() {
-    this.metrics.tweetsSkipped++;
+    this.tweetsSkipped++;
   }
 
   /**
    * Record API error
    */
   incrementApiErrors() {
-    this.metrics.apiErrors++;
+    this.apiErrors++;
   }
 
   /**
    * Record stream disconnect
    */
   incrementStreamDisconnects() {
-    this.metrics.streamDisconnects++;
+    this.streamDisconnects++;
   }
 
   /**
-   * Record processing time for a batch of tweets
-   * @param {number} time - Processing time in milliseconds
+   * Record retry attempt
    */
-  recordProcessingTime(time) {
-    this.metrics.processingTime.push(time);
-    // Keep only last 100 measurements
-    if (this.metrics.processingTime.length > 100) {
-      this.metrics.processingTime.shift();
-    }
+  incrementRetryAttempts() {
+    this.retryAttempts++;
   }
 
   /**
@@ -76,31 +74,73 @@ class Metrics {
    * @param {number} size - Current queue size
    */
   recordQueueSize(size) {
-    this.metrics.queueSize.push(size);
-    // Keep only last 100 measurements
-    if (this.metrics.queueSize.length > 100) {
-      this.metrics.queueSize.shift();
+    this.queueSizes.push(size);
+    if (this.queueSizes.length > 100) {
+      this.queueSizes.shift();
     }
   }
 
   /**
-   * Calculate average processing time
-   * @returns {number} Average processing time in milliseconds
+   * Record processing time for a batch of tweets
+   * @param {number} timeMs - Processing time in milliseconds
    */
-  getAverageProcessingTime() {
-    if (this.metrics.processingTime.length === 0) return 0;
-    const sum = this.metrics.processingTime.reduce((a, b) => a + b, 0);
-    return sum / this.metrics.processingTime.length;
+  recordProcessingTime(timeMs) {
+    this.processingTimes.push(timeMs);
+    if (this.processingTimes.length > 100) {
+      this.processingTimes.shift();
+    }
   }
 
   /**
-   * Calculate average queue size
-   * @returns {number} Average queue size
+   * Collect system resource metrics
+   * @private
    */
-  getAverageQueueSize() {
-    if (this.metrics.queueSize.length === 0) return 0;
-    const sum = this.metrics.queueSize.reduce((a, b) => a + b, 0);
-    return sum / this.metrics.queueSize.length;
+  collectResourceMetrics() {
+    const now = Date.now();
+    const elapsedMs = now - this.lastResourceCheck;
+
+    // Only collect every 60 seconds
+    if (elapsedMs < 60000) {
+      return;
+    }
+
+    const currentCpuUsage = process.cpuUsage(this.lastCpuUsage);
+    const cpuUsagePercent = (
+      (currentCpuUsage.user + currentCpuUsage.system) /
+      (elapsedMs * 1000) * 100
+    ).toFixed(2);
+
+    const memoryUsage = process.memoryUsage();
+    const resourceMetric = {
+      timestamp: now,
+      cpu: {
+        usage: parseFloat(cpuUsagePercent),
+        cores: os.cpus().length
+      },
+      memory: {
+        heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024),
+        heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024),
+        rss: Math.round(memoryUsage.rss / 1024 / 1024),
+        external: Math.round(memoryUsage.external / 1024 / 1024)
+      },
+      system: {
+        totalMemory: Math.round(os.totalmem() / 1024 / 1024),
+        freeMemory: Math.round(os.freemem() / 1024 / 1024),
+        uptime: Math.round(os.uptime()),
+        loadAvg: os.loadavg()
+      }
+    };
+
+    this.resourceMetrics.push(resourceMetric);
+    if (this.resourceMetrics.length > 24) {
+      this.resourceMetrics.shift();
+    }
+
+    this.lastCpuUsage = process.cpuUsage();
+    this.lastResourceCheck = now;
+
+    // Log resource metrics
+    logger.info('Resource metrics', { metrics: resourceMetric });
   }
 
   /**
@@ -108,13 +148,36 @@ class Metrics {
    * @returns {Object} Current metrics
    */
   getMetrics() {
-    const uptime = Date.now() - this.metrics.startTime;
+    this.collectResourceMetrics();
+
+    const avgQueueSize = this.queueSizes.length > 0
+      ? this.queueSizes.reduce((a, b) => a + b) / this.queueSizes.length
+      : 0;
+
+    const avgProcessingTime = this.processingTimes.length > 0
+      ? this.processingTimes.reduce((a, b) => a + b) / this.processingTimes.length
+      : 0;
+
     return {
-      ...this.metrics,
-      uptime,
-      averageProcessingTime: this.getAverageProcessingTime(),
-      averageQueueSize: this.getAverageQueueSize(),
-      tweetsPerMinute: (this.metrics.tweetsProcessed / (uptime / 1000 / 60)).toFixed(2)
+      runtime: {
+        uptime: Math.round((Date.now() - this.startTime) / 1000),
+        startTime: new Date(this.startTime).toISOString()
+      },
+      tweets: {
+        processed: this.tweetsProcessed,
+        favorited: this.tweetsFavorited,
+        skipped: this.tweetsSkipped,
+        avgQueueSize: Math.round(avgQueueSize),
+        avgProcessingTime: Math.round(avgProcessingTime)
+      },
+      errors: {
+        apiErrors: this.apiErrors,
+        streamDisconnects: this.streamDisconnects,
+        retryAttempts: this.retryAttempts
+      },
+      resources: this.resourceMetrics.length > 0
+        ? this.resourceMetrics[this.resourceMetrics.length - 1]
+        : null
     };
   }
 
@@ -123,7 +186,7 @@ class Metrics {
    */
   logMetrics() {
     const metrics = this.getMetrics();
-    logger.info('Bot Metrics', { metrics });
+    logger.info('Current metrics', { metrics });
   }
 }
 
